@@ -1,0 +1,21 @@
+{
+  "defaults": {
+    "N1": 1,
+    "N2": 2,
+    "N3": 3,
+    "tau": 0.3,
+    "alpha": 0.1,
+    "xi": 0.02,
+    "T": 100,
+    "seed": 42,
+    "enable_animation": false,
+    "save_mp4": true,
+    "save_gif": true,
+    "show_animation": true,
+    "animation_fps": 5,
+    "animation_interval": 200,
+    "init_infected_count": 4,
+    "init_infected_method": "sequential",
+    "save_matrix": "random_large1"
+  }
+}

@@ -1,80 +1,53 @@
-from utils import Config
+import json
+import os
+from utils import (load_saved_adjacency_matrix, generate_init_infected)
 from epidemic_simulator import EpidemicSimulator
 
-
-def run_basic_simulation():
-    """Basic simulation without animation"""
-    print("=== Basic Simulation (No Animation) ===")
+def main():
+    print("=== Epidemic Simulation ===")
     
-    cfg = Config(
-        N=50,
-        N1=3,
-        N2=2,
-        N3=1,
-        tau=0.3,
-        alpha=0.1,
-        xi=0.02,
-        T=50,
-        seed=42,
-        enable_animation=False  # Animation disabled
-    )
-    
-    simulator = EpidemicSimulator(cfg, init_infected=list(range(3)))
-    results = simulator.run_simulation(save_results=True, create_plots=True)
-    
-    print(f"R0: {results['r0']:.2f}")
-    print(f"Results saved to: {results['result_path']}")
-    return results
-
-def run_animation_simulation():
-    """Simulation with full animation features"""
-    print("\n=== Animation Simulation ===")
-    
-    cfg = Config(
-        N=30,        # Smaller network for better animation performance
-        N1=2,
-        N2=2,
-        N3=1,
-        tau=0.4,
-        alpha=0.08,
-        xi=0.03,
-        T=40,
-        seed=42,
-        # Animation settings
-        enable_animation=True,
-        save_mp4=True,
-        save_gif=True,
-        show_animation=False,  # Set to True to display animation window
-        animation_fps=8,
-        animation_interval=150
-    )
-    
-    simulator = EpidemicSimulator(cfg, init_infected=[cfg.N//2])
-    results = simulator.run_simulation(save_results=True, create_plots=True)
-    
-    print(f"R0: {results['r0']:.2f}")
-    print(f"Results with animations saved to: {results['result_path']}")
-    return results
+    try:
+        # 1. config.json 읽기
+        with open("config.json", 'r', encoding='utf-8') as f:
+            config_data = json.load(f)
+        config_params = config_data.get("defaults", {})
+        
+        # 2. 매트릭스 파일 경로 만들기
+        matrix_name = config_params["save_matrix"]
+        if not matrix_name.endswith('.json'):
+            matrix_name += '.json'
+        matrix_path = os.path.join("saved_matrix", matrix_name)
+        
+        # 3. 매트릭스 로드
+        adj_matrix = load_saved_adjacency_matrix(matrix_path)
+        
+        # 4. 매트릭스 크기로 N 설정
+        config_params['N'] = adj_matrix.shape[0]
+        
+        # 5. 초기 감염자 생성
+        init_infected = generate_init_infected(config_params)
+        
+        # 6. 시뮬레이션 실행
+        simulator = EpidemicSimulator(config_params, adj_matrix=adj_matrix, init_infected=init_infected)
+        result = simulator.run_simulation(save_results=True, create_plots=True)
+        
+        # 결과 출력
+        print(f"\n=== Simulation Results ===")
+        print(f"Matrix file: {matrix_path}")
+        print(f"Network size: {config_params['N']} nodes")
+        print(f"Initial infected: {init_infected}")
+        print(f"R0: {result['r0']:.2f}")
+        print(f"Results saved to: {result['result_path']}")
+        
+    except Exception as e:
+        print(f"Error during simulation: {e}")
+        print("\n사용 가능한 매트릭스 파일:")
+        if os.path.exists("saved_matrix"):
+            files = [f for f in os.listdir("saved_matrix") if f.endswith('.json')]
+            for f in files:
+                print(f"  - {f.replace('.json', '')}")
+        print("\nconfig.json에서 \"save_matrix\": \"파일명\"으로 설정하세요.")
 
 if __name__ == "__main__":
-    print("SIRS Epidemic Model with Configurable Animation Features")
-    print("=" * 60)
+    main()
     
-    # Run different types of simulations
-    basic_results = run_animation_simulation()
-    
-    # Uncomment the following lines to run animation examples:
-    # animation_results = run_animation_simulation()
-    # custom_results = run_custom_animation()
-    # demo_results = demonstrate_config_control()
-    
-    print("\n" + "=" * 60)
-    print("Demo completed! Check the results folders for outputs.")
-    print("\nTo enable animations, uncomment the animation examples above.")
-    print("Animation features are controlled by Config parameters:")
-    print("  - enable_animation: bool - Master switch")
-    print("  - save_mp4: bool - Save MP4 files")
-    print("  - save_gif: bool - Save GIF files")
-    print("  - show_animation: bool - Display animation window")
-    print("  - animation_fps: int - Animation speed")
-    print("  - animation_interval: int - Frame interval (ms)") 

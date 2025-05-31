@@ -6,23 +6,24 @@ import numpy as np
 import os
 import uuid
 from datetime import datetime
-from utils import Config, run_simulation, create_adjacency_matrix, compute_R0
+from utils import initialize, run_simulation, compute_R0
 from animation_mixin import AnimationMixin
 
 class EpidemicSimulator(AnimationMixin):
     """SIRS Epidemic Model Simulator with visualization and animation capabilities"""
     
-    def __init__(self, config: Config, init_infected=None):
+    def __init__(self, config_params, adj_matrix=None, init_infected=None):
         """
         Initialize the epidemic simulator
         
         Args:
-            config: Configuration object
+            config_params: Configuration parameters dictionary
+            adj_matrix: Pre-generated adjacency matrix (optional)
             init_infected: List of initially infected node indices (if None, uses first 3 nodes)
         """
-        self.config = config
-        self.init_infected = init_infected if init_infected is not None else list(range(min(3, config.N)))
-        self.adj = None
+        self.config_params = config_params
+        self.adj = adj_matrix  # Use provided matrix or will be generated later
+        self.init_infected = init_infected if init_infected is not None else list(range(min(3, config_params['N'])))
         self.state_history = None
         self.r0 = None
         self.result_path = None
@@ -58,14 +59,12 @@ class EpidemicSimulator(AnimationMixin):
             self.result_path = self.create_result_folder(folder_prefix)
             print(f"Results will be saved to: {self.result_path}")
         
-        # Generate adjacency matrix
-        self.adj = create_adjacency_matrix(self.config)
         
         # Run simulation
-        self.state_history = run_simulation(self.config, self.adj, self.init_infected)
+        self.state_history = run_simulation(self.config_params, self.adj, self.init_infected)
         
         # Calculate R0
-        self.r0 = compute_R0(self.config)
+        self.r0 = compute_R0(self.config_params)
         
         # Calculate statistics
         stats = self._calculate_statistics()
@@ -82,7 +81,7 @@ class EpidemicSimulator(AnimationMixin):
                 self._create_network_visualizations()
             
             # Handle animation features if enabled
-            if self.config.enable_animation:
+            if self.config_params['enable_animation']:
                 print("Animation is enabled. Creating animations...")
                 # Create full animation
                 self.create_network_animation(self.adj, self.state_history, self.result_path)
@@ -116,7 +115,7 @@ class EpidemicSimulator(AnimationMixin):
         # Peak statistics
         peak_infected = np.max(I_counts)
         peak_infected_time = np.argmax(I_counts)
-        peak_infected_ratio = peak_infected / self.config.N
+        peak_infected_ratio = peak_infected / self.config_params['N']
         
         # Final state
         final_state = self.state_history[-1]
@@ -126,10 +125,10 @@ class EpidemicSimulator(AnimationMixin):
         
         # Attack rate (total ever infected)
         total_infected_ever = len(np.unique(np.where(self.state_history == 1)[1]))
-        attack_rate = total_infected_ever / self.config.N
+        attack_rate = total_infected_ever / self.config_params['N']
         
         # Epidemic duration (time with >1% infected)
-        threshold = 0.01 * self.config.N
+        threshold = 0.01 * self.config_params['N']
         above_threshold = I_counts > threshold
         epidemic_duration = np.sum(above_threshold) if np.any(above_threshold) else 0
         
@@ -150,18 +149,18 @@ class EpidemicSimulator(AnimationMixin):
     
     def _plot_sir_dynamics(self):
         """Plot SIR dynamics over time"""
-        S_ratios = (self.state_history == 0).sum(axis=1) / self.config.N
-        I_ratios = (self.state_history == 1).sum(axis=1) / self.config.N
-        R_ratios = (self.state_history == 2).sum(axis=1) / self.config.N
+        S_ratios = (self.state_history == 0).sum(axis=1) / self.config_params['N']
+        I_ratios = (self.state_history == 1).sum(axis=1) / self.config_params['N']
+        R_ratios = (self.state_history == 2).sum(axis=1) / self.config_params['N']
         
         plt.figure(figsize=(12, 8))
-        time_steps = np.arange(self.config.T + 1)
+        time_steps = np.arange(self.config_params['T'] + 1)
         plt.plot(time_steps, S_ratios, label='Susceptible', color='blue', linewidth=2)
         plt.plot(time_steps, I_ratios, label='Infected', color='red', linewidth=2)
         plt.plot(time_steps, R_ratios, label='Recovered', color='green', linewidth=2)
         plt.xlabel('Time Step', fontsize=12)
         plt.ylabel('Population Ratio', fontsize=12)
-        plt.title(f'SIRS Model Simulation (N={self.config.N}, R0={self.r0:.2f})', fontsize=14)
+        plt.title(f'SIRS Model Simulation (N={self.config_params["N"]}, R0={self.r0:.2f})', fontsize=14)
         plt.legend(fontsize=12)
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
@@ -171,11 +170,13 @@ class EpidemicSimulator(AnimationMixin):
     def _create_network_visualizations(self):
         """Create network visualizations for key time steps"""
         G = nx.from_numpy_array(self.adj.astype(int), create_using=nx.DiGraph())
-        pos = nx.spring_layout(G, seed=42)  # Fixed layout for consistency
+        
+        # 노드들이 더 가깝게 모이도록 레이아웃 파라미터 조정
+        pos = nx.spring_layout(G, seed=42, k=0.3, iterations=100)  # k값을 줄여서 노드들을 더 가깝게
         
         # Key time points to visualize
-        key_steps = [0, 5, 10, 20, 30, self.config.T]
-        key_steps = [step for step in key_steps if step <= self.config.T]
+        key_steps = [0, 5, 10, 20, 30, self.config_params['T']]
+        key_steps = [step for step in key_steps if step <= self.config_params['T']]
         
         color_map = {0: 'lightblue', 1: 'red', 2: 'lightgreen'}
         state_names = {0: 'Susceptible', 1: 'Infected', 2: 'Recovered'}
@@ -187,10 +188,10 @@ class EpidemicSimulator(AnimationMixin):
             current_state = self.state_history[step]
             colors = [color_map[current_state[node]] for node in G.nodes()]
             
-            # Draw network
-            nx.draw(G, pos, node_color=colors, node_size=50, alpha=0.8,
+            # Draw network - 노드 크기와 간격 조정
+            nx.draw(G, pos, node_color=colors, node_size=100, alpha=0.8,
                     with_labels=False, edge_color='gray', arrows=True,
-                    arrowsize=10, arrowstyle='->')
+                    arrowsize=15, arrowstyle='->', width=0.5)
             
             # Add legend
             legend_elements = [plt.scatter([], [], c=color, s=100, label=f'{name} ({np.sum(current_state==i)})')
@@ -209,18 +210,18 @@ class EpidemicSimulator(AnimationMixin):
         info_text = f"""SIRS Epidemic Model Simulation
 
 Simulation Parameters:
-- Total Nodes (N): {self.config.N}
-- Contact Types (N1, N2, N3): {self.config.N1}, {self.config.N2}, {self.config.N3}
-- Infection Probability (tau): {self.config.tau}
-- Recovery Probability (alpha): {self.config.alpha}
-- Immunity Loss Probability (xi): {self.config.xi}
-- Time Steps (T): {self.config.T}
-- Random Seed: {self.config.seed}
+- Total Nodes (N): {self.config_params['N']}
+- Contact Types (N1, N2, N3): {self.config_params['N1']}, {self.config_params['N2']}, {self.config_params['N3']}
+- Infection Probability (tau): {self.config_params['tau']}
+- Recovery Probability (alpha): {self.config_params['alpha']}
+- Immunity Loss Probability (xi): {self.config_params['xi']}
+- Time Steps (T): {self.config_params['T']}
+- Random Seed: {self.config_params['seed']}
 
 Calculated Metrics:
 - Basic Reproduction Number (R0): {self.r0:.4f}
-- Total Contacts per Node: {self.config.N1 + self.config.N2 + self.config.N3}
-- Network Connectivity: {(self.config.N1 + self.config.N2 + self.config.N3) / (self.config.N - 1) * 100:.1f}%
+- Total Contacts per Node: {self.config_params['N1'] + self.config_params['N2'] + self.config_params['N3']}
+- Network Connectivity: {(self.config_params['N1'] + self.config_params['N2'] + self.config_params['N3']) / (self.config_params['N'] - 1) * 100:.1f}%
 
 Epidemic Statistics:
 - Peak Infected Count: {stats['peak_infected']}
@@ -231,9 +232,9 @@ Epidemic Statistics:
 - Epidemic Duration: {stats['epidemic_duration']} steps
 
 Final State:
-- Susceptible: {stats['final_susceptible']} ({stats['final_susceptible']/self.config.N:.1%})
-- Infected: {stats['final_infected']} ({stats['final_infected']/self.config.N:.1%})
-- Recovered: {stats['final_recovered']} ({stats['final_recovered']/self.config.N:.1%})
+- Susceptible: {stats['final_susceptible']} ({stats['final_susceptible']/self.config_params['N']:.1%})
+- Infected: {stats['final_infected']} ({stats['final_infected']/self.config_params['N']:.1%})
+- Recovered: {stats['final_recovered']} ({stats['final_recovered']/self.config_params['N']:.1%})
 
 Results saved in: {self.result_path}
 """
