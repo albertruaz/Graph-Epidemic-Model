@@ -6,7 +6,6 @@ import networkx as nx
 
 import numpy as np
 import os
-from utils import Config
 
 class AnimationMixin:
     """
