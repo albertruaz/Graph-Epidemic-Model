@@ -16,6 +16,14 @@
     "animation_interval": 200,
     "init_infected_count": 4,
     "init_infected_method": "sequential",
-    "save_matrix": "random1"
+    "save_matrix": "random_large1",
+    "limit_starting_step": 4,
+    "methods": [
+      [0, 2, 3],
+      [1, 1, 2],
+      [1, 2, 2],
+      [0, 0, 0],
+      [1, 2, 3]
+    ]
   }
 }

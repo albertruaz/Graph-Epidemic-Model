@@ -5,25 +5,155 @@ import networkx as nx
 import numpy as np
 import os
 import uuid
+import json
 from datetime import datetime
-from utils import initialize, run_simulation, compute_R0
+from utils import initialize, compute_R0
 from animation_mixin import AnimationMixin
+
+def sample_contacts_with_limit(adj: np.ndarray, infected_idx: np.ndarray, config_params, current_step: int, method: tuple = None):
+    """
+    감염된 노드마다 인접한 노드를 엣지 타입에 따라 샘플링 (limit_starting_step 고려)
+    
+    Args:
+        adj: 인접 행렬 (adjacency matrix) - 값은 0, 1, 2, 3
+        infected_idx: 감염된 노드 인덱스 배열
+        config_params: 설정 파라미터 딕셔너리 (N1, N2, N3 포함)
+        current_step: 현재 시간 스텝
+        method: 방역 대책 (n1, n2, n3) 튜플
+    
+    Returns:
+        contacts: 각 감염 노드별 접촉 노드들의 리스트
+    """
+    all_contacts = []
+    
+    # limit_starting_step 이후에는 method를 적용
+    if current_step >= config_params.get('limit_starting_step', float('inf')) and method is not None:
+        n1_mod, n2_mod, n3_mod = method
+    else:
+        n1_mod, n2_mod, n3_mod = config_params['N1'], config_params['N2'], config_params['N3']
+    
+    for j in infected_idx:
+        node_contacts = []
+        
+        # 노드 j의 이웃들과 엣지 타입 찾기
+        neighbors = np.flatnonzero(adj[:, j])  # j로부터 받는 in-neighbors
+        
+        for neighbor in neighbors:
+            edge_type = adj[neighbor, j]  # 엣지 타입 (1, 2, 3)
+            
+            if edge_type == 1:
+                # 타입 1 엣지: N1번 컨택 (방역 대책 적용)
+                contact_count = n1_mod
+            elif edge_type == 2:
+                # 타입 2 엣지: N2번 컨택 (방역 대책 적용)
+                contact_count = n2_mod
+            elif edge_type == 3:
+                # 타입 3 엣지: N3번 컨택 (방역 대책 적용)
+                contact_count = n3_mod
+            else:
+                continue  # 0이면 연결 없음
+            
+            # 해당 이웃과 contact_count번 컨택
+            node_contacts.extend([neighbor] * contact_count)
+        
+        all_contacts.append(node_contacts)
+    
+    return all_contacts
+
+def step_with_limit(curr: np.ndarray, adj: np.ndarray, config_params, current_step: int, method: tuple = None) -> np.ndarray:
+    """
+    현재 상태에서 다음 상태로 업데이트 (limit_starting_step 고려)
+    
+    Args:
+        curr: 현재 상태 벡터 (shape: (N,), dtype: int)
+        adj: 인접 행렬 (adjacency matrix)
+        config_params: 설정 파라미터 딕셔너리
+        current_step: 현재 시간 스텝
+        method: 방역 대책 (n1, n2, n3) 튜플
+    
+    Returns:
+        next: 다음 상태 벡터 (shape: (N,), dtype: int)
+    """
+    next = curr.copy()
+    
+    # 1. 감염 전파 (S → I): 확률 τ per contact
+    infected_idx = np.where(curr == 1)[0]  # 현재 감염된 노드들
+    
+    if len(infected_idx) > 0:
+        # 각 감염 노드가 접촉할 노드들 샘플링 (limit_starting_step과 method 고려)
+        contacts_list = sample_contacts_with_limit(adj, infected_idx, config_params, current_step, method)
+        
+        # 각 감염 노드별로 접촉에 대해 감염 확률 적용
+        for i, node_contacts in enumerate(contacts_list):
+            for target in node_contacts:
+                if curr[target] == 0:  # 대상이 S 상태인 경우
+                    if np.random.random() < config_params['tau']:
+                        next[target] = 1  # S → I
+    
+    # 2. 회복 (I → R): 확률 α per node per step
+    infected_nodes = np.where(curr == 1)[0]
+    for node in infected_nodes:
+        if np.random.random() < config_params['alpha']:
+            next[node] = 2  # I → R
+    
+    # 3. 면역 소실 (R → S): 확률 ξ per node per step
+    recovered_nodes = np.where(curr == 2)[0]
+    for node in recovered_nodes:
+        if np.random.random() < config_params['xi']:
+            next[node] = 0  # R → S
+    
+    return next
+
+def run_simulation_with_limit(config_params, adj: np.ndarray, init_I: list, method: tuple = None) -> np.ndarray:
+    """
+    전체 시뮬레이션 실행 (limit_starting_step 고려)
+    
+    Args:
+        config_params: 설정 파라미터 딕셔너리
+        adj: 인접 행렬 (adjacency matrix)
+        init_I: 초기 감염 노드 인덱스 리스트
+        method: 방역 대책 (n1, n2, n3) 튜플
+    
+    Returns:
+        state: 전체 상태 기록 (shape: (T+1, N), dtype: int)
+    """
+    # 1. 초기 상태 설정
+    state = initialize(config_params, init_I)
+    
+    # 2. 전체 시간에 대한 히스토리 배열 준비 (T+1 스텝)
+    history = np.empty((config_params['T'] + 1, config_params['N']), dtype=int)
+    history[0] = state  # 초기 상태 저장
+    
+    # 3. 시간 전진 루프
+    for t in range(1, config_params['T'] + 1):
+        state = step_with_limit(state, adj, config_params, t, method)
+        history[t] = state
+    
+    return history
 
 class EpidemicSimulator(AnimationMixin):
     """SIRS Epidemic Model Simulator with visualization and animation capabilities"""
     
-    def __init__(self, config_params, adj_matrix=None, init_infected=None):
+    def __init__(self, config_params=None, adj_matrix=None, init_infected=None, method=None):
         """
         Initialize the epidemic simulator
         
         Args:
-            config_params: Configuration parameters dictionary
+            config_params: Configuration parameters dictionary (if None, loads from config_test.json)
             adj_matrix: Pre-generated adjacency matrix (optional)
             init_infected: List of initially infected node indices (if None, uses first 3 nodes)
+            method: 방역 대책 (n1, n2, n3) 튜플
         """
+        # config_params가 없으면 config_test.json에서 로드
+        if config_params is None:
+            with open("config_test.json", 'r', encoding='utf-8') as f:
+                config_data = json.load(f)
+            config_params = config_data.get("defaults", {})
+        
         self.config_params = config_params
         self.adj = adj_matrix  # Use provided matrix or will be generated later
         self.init_infected = init_infected if init_infected is not None else list(range(min(3, config_params['N'])))
+        self.method = method  # 방역 대책
         self.state_history = None
         self.r0 = None
         self.result_path = None
@@ -59,9 +189,8 @@ class EpidemicSimulator(AnimationMixin):
             self.result_path = self.create_result_folder(folder_prefix)
             print(f"Results will be saved to: {self.result_path}")
         
-        
-        # Run simulation
-        self.state_history = run_simulation(self.config_params, self.adj, self.init_infected)
+        # Run simulation with limit_starting_step and method
+        self.state_history = run_simulation_with_limit(self.config_params, self.adj, self.init_infected, self.method)
         
         # Calculate R0
         self.r0 = compute_R0(self.config_params)
@@ -147,7 +276,7 @@ class EpidemicSimulator(AnimationMixin):
             'epidemic_duration': epidemic_duration
         }
     
-    def _plot_sir_dynamics(self):
+    def _plot_sir_dynamics(self, custom_filename=None):
         """Plot SIR dynamics over time"""
         S_ratios = (self.state_history == 0).sum(axis=1) / self.config_params['N']
         I_ratios = (self.state_history == 1).sum(axis=1) / self.config_params['N']
@@ -160,11 +289,28 @@ class EpidemicSimulator(AnimationMixin):
         plt.plot(time_steps, R_ratios, label='Recovered', color='green', linewidth=2)
         plt.xlabel('Time Step', fontsize=12)
         plt.ylabel('Population Ratio', fontsize=12)
-        plt.title(f'SIRS Model Simulation (N={self.config_params["N"]}, R0={self.r0:.2f})', fontsize=14)
+        
+        # method 정보를 title에 포함
+        if self.method is not None:
+            method_str = f"Method({self.method[0]},{self.method[1]},{self.method[2]})"
+            plt.title(f'SIRS Model Simulation - {method_str} (N={self.config_params["N"]}, R0={self.r0:.2f})', fontsize=14)
+        else:
+            plt.title(f'SIRS Model Simulation (N={self.config_params["N"]}, R0={self.r0:.2f})', fontsize=14)
+            
         plt.legend(fontsize=12)
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
-        plt.savefig(os.path.join(self.result_path, 'sir_dynamics.png'), dpi=300, bbox_inches='tight')
+        
+        # 파일명 결정
+        if custom_filename:
+            filename = custom_filename
+        elif self.method is not None:
+            method_str = f"{self.method[0]}_{self.method[1]}_{self.method[2]}"
+            filename = f'sir_dynamics_{method_str}.png'
+        else:
+            filename = 'sir_dynamics.png'
+            
+        plt.savefig(os.path.join(self.result_path, filename), dpi=300, bbox_inches='tight')
         plt.close()
     
     def _create_network_visualizations(self):
@@ -243,3 +389,38 @@ Results saved in: {self.result_path}
         
         with open(os.path.join(self.result_path, 'simulation_info.txt'), 'w') as f:
             f.write(info_text)
+
+    def calculate_custom_metrics(self):
+        """
+        사용자 정의 지표 계산
+        
+        Returns:
+            dict: 사용자 정의 지표들
+        """
+        if self.state_history is None:
+            return None
+        
+        # 1. 총 노드 대비 감염된 노드 수 비율 (한번이라도 감염된 적이 있는 노드)
+        ever_infected_nodes = np.unique(np.where(self.state_history == 1)[1])
+        infection_coverage_ratio = len(ever_infected_nodes) / self.config_params['N']
+        
+        # 2. 감염 지속 시간 (감염률이 전체의 0.2 밑으로 떨어지는데까지 걸린 시간)
+        I_ratios = np.sum(self.state_history == 1, axis=1) / self.config_params['N']
+        threshold = 0.2
+        
+        # 0.2 이상인 time step들 찾기
+        above_threshold = I_ratios >= threshold
+        
+        if np.any(above_threshold):
+            # 마지막으로 0.2 이상이었던 time step 찾기
+            infection_duration = np.where(above_threshold)[0][-1]  # 마지막 인덱스
+        else:
+            # 한번도 0.2를 넘지 않았다면 0
+            infection_duration = 0
+        
+        return {
+            'infection_coverage_ratio': infection_coverage_ratio,
+            'infection_duration': infection_duration,
+            'ever_infected_count': len(ever_infected_nodes),
+            'method_applied': self.method
+        }
