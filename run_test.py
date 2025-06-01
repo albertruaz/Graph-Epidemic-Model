@@ -66,6 +66,7 @@ def run_repeated_simulations():
         print(f"Results will be saved to: {result_path}")
         print(f"Network size: {config_params['N']} nodes")
         print(f"Limit starting step: {config_params['limit_starting_step']}")
+        print(f"Save all step networks: {config_params.get('save_all_step_networks', False)}")
         print()
         
         # 9. 각 방역 대책에 대해 시뮬레이션 실행
@@ -89,8 +90,16 @@ def run_repeated_simulations():
             # 시뮬레이션 실행 (결과 저장 비활성화하고 수동으로 필요한 것만 저장)
             result = simulator.run_simulation(save_results=False, create_plots=False)
             
+            # method 정보를 문자열로 변환
+            method_str = f"{method[0]}_{method[1]}_{method[2]}"
+            
             # SIR dynamics만 method별로 저장
             simulator._plot_sir_dynamics()
+            
+            # save_all_step_networks 옵션이 활성화되면 모든 step의 network 저장
+            if config_params.get('save_all_step_networks', False):
+                print(f"  Saving all step networks for method {method}...")
+                simulator._create_all_step_network_visualizations(method_str)
             
             # 사용자 정의 지표 계산
             custom_metrics = simulator.calculate_custom_metrics()

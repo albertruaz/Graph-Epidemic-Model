@@ -151,13 +151,20 @@ def compute_R0(config_params) -> float:
     Returns:
         R0: 기본 재생산 지수 값
     """
-    # PDF 모델 식 (16.1)에 따른 R0 계산
-    # Stochastic IBM에서 "1 타임스텝 평균 접촉 수"가 N1+N2+N3
-    # β = τ × (N1+N2+N3)/N, α = cfg.alpha
-    # R0 = β*N / α = τ*(N1+N2+N3)/α
+    # 수식 (16.1)에 따른 R0 계산
+    # R0 = τ * N0 * d_τ
+    # 여기서 N0 = N1 + N2 + N3 (평균 접촉 수)
     
     total_contacts = config_params['N1'] + config_params['N2'] + config_params['N3']
-    R0 = config_params['tau'] * total_contacts / config_params['alpha']
+    
+    # d_tau 매개변수가 있으면 사용, 없으면 alpha로부터 계산
+    if 'd_tau' in config_params:
+        d_tau = config_params['d_tau']
+    else:
+        # 기존 alpha 방식과의 호환성
+        d_tau = 1.0 / config_params['alpha']
+    
+    R0 = config_params['tau'] * total_contacts * d_tau
     
     return R0
 
