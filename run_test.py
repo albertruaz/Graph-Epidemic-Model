@@ -1,16 +1,16 @@
 import json
 import os
 from datetime import datetime
-from utils import (load_saved_adjacency_matrix, generate_init_infected)
-from epidemic_simulator_test import EpidemicSimulator
+from utils.utils import (load_saved_adjacency_matrix, generate_init_infected)
+from models.epidemic_simulator_test import EpidemicSimulator
 
 def run_repeated_simulations():
     """방역 대책별 반복 시뮬레이션 실행"""
     print("=== Repeated Epidemic Simulation with Prevention Methods ===")
     
     try:
-        # 1. config_test.json 읽기
-        with open("config_test.json", 'r', encoding='utf-8') as f:
+        # 1. config/config_test.json 읽기
+        with open("config/config_test.json", 'r', encoding='utf-8') as f:
             config_data = json.load(f)
         config_params = config_data.get("defaults", {})
         
@@ -136,7 +136,7 @@ def run_repeated_simulations():
             files = [f for f in os.listdir("saved_matrix") if f.endswith('.json')]
             for f in files:
                 print(f"  - {f.replace('.json', '')}")
-        print("\nconfig_test.json에서 \"save_matrix\": \"파일명\"으로 설정하세요.")
+        print("\nconfig/config_test.json에서 \"save_matrix\": \"파일명\"으로 설정하세요.")
 
 def main():
     print("=== Main ===")

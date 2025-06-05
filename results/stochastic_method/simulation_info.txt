@@ -1,0 +1,30 @@
+SIRS Epidemic Model Simulation
+
+Simulation Parameters:
+- Total Nodes (N): 30
+- Contact Types (N1, N2, N3): 2, 2, 1
+- Infection Probability (tau): 0.4
+- Recovery Probability (alpha): 0.08
+- Immunity Loss Probability (xi): 0.03
+- Time Steps (T): 40
+- Random Seed: 42
+
+Calculated Metrics:
+- Basic Reproduction Number (R0): 25.0000
+- Total Contacts per Node: 5
+- Network Connectivity: 17.2%
+
+Epidemic Statistics:
+- Peak Infected Count: 25
+- Peak Infected Time: Step 6
+- Peak Infected Ratio: 83.3%
+- Total Ever Infected: 30
+- Attack Rate: 100.0%
+- Epidemic Duration: 41 steps
+
+Final State:
+- Susceptible: 4 (13.3%)
+- Infected: 7 (23.3%)
+- Recovered: 19 (63.3%)
+
+Results saved in: results/result_20250524_004940_850a9e25

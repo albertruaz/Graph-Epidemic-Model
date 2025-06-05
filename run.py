@@ -1,14 +1,14 @@
 import json
 import os
-from utils import (load_saved_adjacency_matrix, generate_init_infected)
-from epidemic_simulator import EpidemicSimulator
+from utils.utils import (load_saved_adjacency_matrix, generate_init_infected)
+from models.epidemic_simulator import EpidemicSimulator
 
 def main():
     print("=== Epidemic Simulation ===")
     
     try:
-        # 1. config.json 읽기
-        with open("config.json", 'r', encoding='utf-8') as f:
+        # 1. config/config.json 읽기
+        with open("config/config.json", 'r', encoding='utf-8') as f:
             config_data = json.load(f)
         config_params = config_data.get("defaults", {})
         
@@ -46,7 +46,7 @@ def main():
             files = [f for f in os.listdir("saved_matrix") if f.endswith('.json')]
             for f in files:
                 print(f"  - {f.replace('.json', '')}")
-        print("\nconfig.json에서 \"save_matrix\": \"파일명\"으로 설정하세요.")
+        print("\nconfig/config.json에서 \"save_matrix\": \"파일명\"으로 설정하세요.")
 
 if __name__ == "__main__":
     main()

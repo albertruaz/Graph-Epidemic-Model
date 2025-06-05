@@ -1,6 +1,4 @@
-results/
-__pycache__/
 
-*.txt
+__pycache__/
 
 .DS_Store

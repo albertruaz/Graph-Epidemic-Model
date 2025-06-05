@@ -1,0 +1,39 @@
+SIRS Epidemic Model Animation Results
+
+=== Simulation Parameters ===
+- Total Nodes (N): 30
+- Contact Types (N1, N2, N3): 2, 2, 1
+- Infection Probability (tau): 0.4
+- Recovery Probability (alpha): 0.08
+- Immunity Loss Probability (xi): 0.03
+- Time Steps (T): 40
+- Random Seed: 42
+
+=== Animation Settings ===
+- Animation Enabled: True
+- Save MP4: True
+- Save GIF: True
+- Show Animation: False
+- Animation FPS: 8
+- Frame Interval: 150ms
+
+=== Network Properties ===
+- Total Contacts per Node: 5
+- Network Connectivity: 17.2%
+- Basic Reproduction Number (R0): 25.0000
+
+=== Epidemic Statistics ===
+- Peak Infected Count: 25
+- Peak Infected Time: Step 6
+- Total Ever Infected: 30
+- Attack Rate: 100.0%
+
+=== Final State ===
+- Susceptible: 4 (13.3%)
+- Infected: 7 (23.3%)
+- Recovered: 19 (63.3%)
+
+=== Files Generated ===
+- network_evolution.mp4: MP4 animation
+- network_evolution.gif: GIF animation
+- animation_info.txt: This file

@@ -1,0 +1,49 @@
+=== Simulation Results Summary Statistics (Multiple Iterations) ===
+
+Total number of method combinations: 135
+N1 values: [np.int64(0), np.int64(1), np.int64(2)]
+N2 values: [np.int64(0), np.int64(1), np.int64(2), np.int64(3), np.int64(4)]
+N3 values: [np.int64(0), np.int64(1), np.int64(2), np.int64(3), np.int64(4), np.int64(5), np.int64(6), np.int64(7), np.int64(8)]
+
+=== Infection Coverage Ratio Statistics (Mean Values) ===
+Overall Mean: 0.5072
+Overall Std:  0.1039
+Min:  0.2743
+Max:  0.7183
+Average Standard Deviation across iterations: 0.1659
+
+=== Infection Duration Statistics (Mean Values) ===
+Overall Mean: 14.80
+Overall Std:  3.10
+Min:  7.74
+Max:  20.88
+Average Standard Deviation across iterations: 6.37
+
+=== Duration/Coverage Ratio Statistics (Mean Values) ===
+Overall Mean: 29.14
+Overall Std:  0.84
+Min:  26.87
+Max:  31.30
+
+=== Statistics by N1 (Mean Values) ===
+
+N1 = 0:
+  Infection Coverage Ratio (Mean): 0.4368 ± 0.0839
+  Infection Duration (Mean): 12.73 ± 2.60
+  Duration/Coverage Ratio (Mean): 29.08 ± 0.89
+  Average Std across iterations - Coverage: 0.1592
+  Average Std across iterations - Duration: 5.99
+
+N1 = 1:
+  Infection Coverage Ratio (Mean): 0.5105 ± 0.0921
+  Infection Duration (Mean): 14.91 ± 2.80
+  Duration/Coverage Ratio (Mean): 29.17 ± 0.89
+  Average Std across iterations - Coverage: 0.1691
+  Average Std across iterations - Duration: 6.47
+
+N1 = 2:
+  Infection Coverage Ratio (Mean): 0.5744 ± 0.0874
+  Infection Duration (Mean): 16.75 ± 2.52
+  Duration/Coverage Ratio (Mean): 29.17 ± 0.72
+  Average Std across iterations - Coverage: 0.1696
+  Average Std across iterations - Duration: 6.66

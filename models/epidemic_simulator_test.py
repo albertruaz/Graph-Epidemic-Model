@@ -7,8 +7,8 @@ import os
 import uuid
 import json
 from datetime import datetime
-from utils import initialize, compute_R0
-from animation_mixin import AnimationMixin
+from utils.utils import initialize, compute_R0
+from models.animation_mixin import AnimationMixin
 
 def sample_contacts_with_limit(adj: np.ndarray, infected_idx: np.ndarray, config_params, infection_start_times: np.ndarray, current_step: int, method: tuple = None):
     """

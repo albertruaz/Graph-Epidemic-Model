@@ -6,8 +6,8 @@ import numpy as np
 import os
 import uuid
 from datetime import datetime
-from utils import initialize, run_simulation, compute_R0
-from animation_mixin import AnimationMixin
+from utils.utils import initialize, run_simulation, compute_R0
+from models.animation_mixin import AnimationMixin
 
 class EpidemicSimulator(AnimationMixin):
     """SIRS Epidemic Model Simulator with visualization and animation capabilities"""

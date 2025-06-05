@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-학교 반 구조 Matrix 생성 및 저장 도구
+Matrix 생성 및 저장 도구
 
 사용법:
-    python generate_matrix_school.py --name my_school_matrix
+    python generate_matrix.py --name my_matrix
 
 기능:
-- 학교 반 구조의 adjacency matrix 생성 (30명, 5명씩 6반)
-- 반 내부는 완전 연결 (N3), 반간 연결 (N2), 랜덤 연결 (N1)
+- 랜덤 adjacency matrix 생성
 - saved_matrix 폴더에 JSON 형식으로 저장
 - 네트워크 그래프를 PNG 이미지로 저장 (saved_matrix 상위 폴더에)
 """
@@ -19,7 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
 from datetime import datetime
-from utils import Config
+from utils.utils import Config
 
 
 def save_matrix_with_name(adj: np.ndarray, cfg: Config, name: str, description: str = "") -> str:
@@ -73,13 +72,13 @@ def save_matrix_with_name(adj: np.ndarray, cfg: Config, name: str, description: 
     return filepath
 
 
-def create_school_class_adjacency_matrix(cfg: Config) -> np.ndarray:
+def create_typed_random_adjacency_matrix(cfg: Config) -> np.ndarray:
     """
-    학교 반 구조의 인접 행렬 생성
-    - 30명을 5명씩 6반으로 분할
-    - 각 반 내부는 완전 연결 (N3 타입)
-    - 1-2반, 3-4반, 5-6반 간 연결 (N2 타입)
-    - 랜덤 추가 연결 (N1 타입)
+    타입이 구분된 랜덤 인접 행렬 생성 (총 엣지 개수 방식)
+    - 0: 연결 없음
+    - 1: N1 타입 간선 (총 N1개)
+    - 2: N2 타입 간선 (총 N2개)
+    - 3: N3 타입 간선 (총 N3개)
     
     Args:
         cfg: 설정 객체
@@ -89,68 +88,49 @@ def create_school_class_adjacency_matrix(cfg: Config) -> np.ndarray:
     """
     adj = np.zeros((cfg.N, cfg.N), dtype=int)
     
-    # 반 구성 (5명씩 6반)
-    students_per_class = 5
-    num_classes = cfg.N // students_per_class
+    # 가능한 모든 연결 조합 (자기 자신 제외)
+    possible_connections = []
+    for i in range(cfg.N):
+        for j in range(cfg.N):
+            if i != j:  # 자기 자신과의 연결 제외
+                possible_connections.append((i, j))
     
-    classes = []
-    for i in range(num_classes):
-        start_idx = i * students_per_class
-        end_idx = start_idx + students_per_class
-        classes.append(list(range(start_idx, end_idx)))
+    # 총 연결 수가 가능한 연결 수를 초과하지 않도록 제한
+    total_edges = cfg.N1 + cfg.N2 + cfg.N3
+    max_possible = len(possible_connections)
     
-    print(f"Created {num_classes} classes with {students_per_class} students each")
-    for i, class_students in enumerate(classes):
-        print(f"Class {i+1}: {class_students}")
+    if total_edges > max_possible:
+        print(f"Warning: 요청된 총 엣지 수 ({total_edges})가 최대 가능 수 ({max_possible})를 초과합니다.")
+        # 비율에 따라 조정
+        ratio = max_possible / total_edges
+        cfg.N1 = int(cfg.N1 * ratio)
+        cfg.N2 = int(cfg.N2 * ratio) 
+        cfg.N3 = int(cfg.N3 * ratio)
+        total_edges = cfg.N1 + cfg.N2 + cfg.N3
+        print(f"조정된 엣지 수: N1={cfg.N1}, N2={cfg.N2}, N3={cfg.N3}")
     
-    # 1. 각 반 내부 완전 연결 (N3 타입 - 두꺼운 간선)
-    for class_students in classes:
-        for i, student1 in enumerate(class_students):
-            for j, student2 in enumerate(class_students):
-                if i != j:  # 자기 자신 제외
-                    adj[student2, student1] = 3  # N3 타입
+    # 랜덤하게 연결 선택
+    selected_connections = np.random.choice(len(possible_connections), 
+                                          total_edges, 
+                                          replace=False)
     
-    # 2. 반간 연결 (N2 타입 - 중간 간선)
-    # 1-2반, 3-4반, 5-6반 연결
-    class_pairs = [(0, 1), (2, 3), (4, 5)]  # 0-indexed
+    # 선택된 연결들을 타입별로 배정
+    edge_types = ([1] * cfg.N1 + [2] * cfg.N2 + [3] * cfg.N3)
+    np.random.shuffle(edge_types)  # 타입 순서 섞기
     
-    for class1_idx, class2_idx in class_pairs:
-        if class1_idx < len(classes) and class2_idx < len(classes):
-            class1 = classes[class1_idx]
-            class2 = classes[class2_idx]
-            
-            # 각 반에서 N2명씩 선택해서 연결
-            connectors1 = np.random.choice(class1, min(cfg.N2, len(class1)), replace=False)
-            connectors2 = np.random.choice(class2, min(cfg.N2, len(class2)), replace=False)
-            
-            # 선택된 학생들끼리 서로 연결
-            for student1 in connectors1:
-                for student2 in connectors2:
-                    adj[student2, student1] = 2  # N2 타입
-                    adj[student1, student2] = 2  # N2 타입 (양방향)
-            
-            print(f"Connected Class {class1_idx+1} and Class {class2_idx+1}: {list(connectors1)} <-> {list(connectors2)}")
+    # 인접 행렬에 연결 추가
+    for idx, edge_type in zip(selected_connections, edge_types):
+        i, j = possible_connections[idx]
+        adj[i, j] = edge_type
     
-    # 3. 랜덤 추가 연결 (N1 타입 - 얇은 간선)
-    total_random_connections = (cfg.N1 * cfg.N) // 2  # 절반으로 줄임
-    
-    for _ in range(total_random_connections):
-        # 완전히 랜덤하게 두 노드 선택
-        student1 = np.random.randint(0, cfg.N)
-        student2 = np.random.randint(0, cfg.N)
-        
-        # 자기 자신이 아니고, 아직 연결되지 않은 경우만
-        if student1 != student2 and adj[student2, student1] == 0:
-            adj[student2, student1] = 1  # N1 타입
-    
-    print(f"Added {total_random_connections} random connections (N1 type)")
+    print(f"Created random network with N1={cfg.N1}, N2={cfg.N2}, N3={cfg.N3} edges")
     
     return adj
 
 
 def visualize_and_save_matrix(adj: np.ndarray, name: str) -> str:
     """
-    학교 반 구조의 Adjacency matrix를 네트워크 그래프로 시각화하고 PNG로 저장
+    타입이 구분된 Adjacency matrix를 네트워크 그래프로 시각화하고 PNG로 저장
     
     Args:
         adj: 시각화할 adjacency matrix (값: 0,1,2,3)
@@ -162,20 +142,8 @@ def visualize_and_save_matrix(adj: np.ndarray, name: str) -> str:
     # NetworkX 그래프 생성
     G = nx.from_numpy_array(adj, create_using=nx.DiGraph())
     
-    # 반 구성 정보
-    students_per_class = 5
-    num_classes = 6
-    
-    classes = []
-    for i in range(num_classes):
-        start_idx = i * students_per_class
-        end_idx = start_idx + students_per_class
-        classes.append(list(range(start_idx, end_idx)))
-    
-    print(f"Visualizing {num_classes} classes: {classes}")
-    
     # 자연스러운 spring layout 사용
-    pos = nx.spring_layout(G, seed=42, k=1.2, iterations=100)
+    pos = nx.spring_layout(G, seed=42, k=1.5, iterations=100)
     
     # 노드 크기를 degree에 따라 조정
     degrees = dict(G.degree())
@@ -198,9 +166,9 @@ def visualize_and_save_matrix(adj: np.ndarray, name: str) -> str:
     # 메인 플롯 - 네트워크 그래프
     plt.subplot(2, 2, (1, 3))
     
-    # 노드 그리기 (반별 색상)
+    # 노드 그리기 (모든 노드 같은 색상)
     nx.draw_networkx_nodes(G, pos, 
-                          node_color='lightblue',
+                          node_color='lightblue',  # 모든 노드 같은 색
                           node_size=node_sizes,
                           alpha=0.8,
                           edgecolors='black',
@@ -212,11 +180,12 @@ def visualize_and_save_matrix(adj: np.ndarray, name: str) -> str:
     edge_alphas = {1: 0.7, 2: 0.8, 3: 1.0}
     
     for edge_type in [1, 2, 3]:
+        # 해당 타입의 간선들만 찾기
         edges_of_type = []
         for i in range(adj.shape[0]):
             for j in range(adj.shape[1]):
                 if adj[i, j] == edge_type:
-                    edges_of_type.append((j, i))
+                    edges_of_type.append((j, i))  # j -> i 방향
         
         if edges_of_type:
             nx.draw_networkx_edges(G, pos,
@@ -228,29 +197,29 @@ def visualize_and_save_matrix(adj: np.ndarray, name: str) -> str:
                                   alpha=edge_alphas[edge_type],
                                   width=edge_width)
     
-    # 노드 라벨 (모든 학생)
-    labels = {i: str(i) for i in range(num_nodes)}
-    nx.draw_networkx_labels(G, pos, labels=labels,
-                           font_size=7,
-                           font_color='white',
-                           font_weight='bold')
+    # 노드 라벨 그리기 (노드 수가 적을 때만)
+    if num_nodes <= 30:
+        nx.draw_networkx_labels(G, pos, 
+                               font_size=7,
+                               font_color='white',
+                               font_weight='bold')
     
-    # 범례 (반별 색상 범례 제거, 간선 타입만)
+    # 범례 (간선 타입만)
     legend_elements = [
-        plt.Line2D([0], [0], color='lightgray', lw=1.5, label=f'N1 (random, {edges_by_type[1]} edges)'),
-        plt.Line2D([0], [0], color='gray', lw=1.5, label=f'N2 (class pairs, {edges_by_type[2]} edges)'),
-        plt.Line2D([0], [0], color='black', lw=1.5, label=f'N3 (within class, {edges_by_type[3]} edges)'),
+        plt.Line2D([0], [0], color='lightgray', lw=1.5, label=f'N1 ({edges_by_type[1]} edges)'),
+        plt.Line2D([0], [0], color='gray', lw=1.5, label=f'N2 ({edges_by_type[2]} edges)'),
+        plt.Line2D([0], [0], color='black', lw=1.5, label=f'N3 ({edges_by_type[3]} edges)')
     ]
     
     plt.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.0, 1.0), fontsize=10)
     
-    plt.title(f'School Class Network: {name}\nNodes: {num_nodes}, Total Edges: {total_edges}, Avg Degree: {avg_degree:.2f}', 
+    plt.title(f'Random Network: {name}\nNodes: {num_nodes}, Total Edges: {total_edges}, Avg Degree: {avg_degree:.2f}', 
               fontsize=13, fontweight='bold')
     plt.axis('off')
     
     # 우하단 - edge type distribution
     plt.subplot(2, 2, 4)
-    types = ['N1\n(Random)', 'N2\n(Class Pairs)', 'N3\n(Within Class)']
+    types = ['N1', 'N2', 'N3']
     counts = [edges_by_type[1], edges_by_type[2], edges_by_type[3]]
     colors = ['lightgray', 'gray', 'black']
     
@@ -260,10 +229,12 @@ def visualize_and_save_matrix(adj: np.ndarray, name: str) -> str:
     plt.title('Edge Type Distribution', fontsize=11)
     plt.grid(True, alpha=0.3, axis='y')
     
+    # 막대 위에 숫자 표시
     for bar, count in zip(bars, counts):
         plt.text(bar.get_x() + bar.get_width()/2., bar.get_height() + 1,
                 f'{count}', ha='center', va='bottom', fontsize=9)
     
+    # 전체 레이아웃 조정
     plt.tight_layout()
     
     # 이미지 저장
@@ -277,29 +248,27 @@ def visualize_and_save_matrix(adj: np.ndarray, name: str) -> str:
     return image_path
 
 
-def generate_matrix(name: str, N: int = 30, N1: int = 3, N2: int = 2, N3: int = 4):
+def generate_matrix(name: str, N: int = 30, N1: int = 40, N2: int = 30, N3: int = 20):
     """
-    학교 반 구조의 매트릭스 생성 및 저장
+    랜덤 매트릭스 생성 및 저장 (총 엣지 개수 방식)
     
     Args:
         name: 저장할 파일명
-        N: 노드 수 (30명 = 5명씩 6반)
-        N1: 랜덤 연결 수 (3)
-        N2: 반간 연결할 학생 수 (2) 
-        N3: 반 내부 연결 수 (4, 5명 중 자기 제외 4명과 연결)
+        N: 노드 수
+        N1, N2, N3: 각 타입별 총 엣지 개수
     """
-    print(f"=== 학교 반 구조 매트릭스 생성: {name} ===")
-    print(f"Parameters: N={N}, N1={N1} (random), N2={N2} (class pairs), N3={N3} (within class)")
+    print(f"=== 랜덤 매트릭스 생성: {name} ===")
+    print(f"Parameters: N={N}, N1={N1} (total edges), N2={N2} (total edges), N3={N3} (total edges)")
     
-    # Config 생성
+    # Config 생성 (랜덤 매트릭스용)
     cfg = Config(
         N=N, N1=N1, N2=N2, N3=N3,
         tau=0.3, alpha=0.1, xi=0.02, T=50,
         seed=42
     )
     
-    # 학교 반 구조 adjacency matrix 생성
-    adj_matrix = create_school_class_adjacency_matrix(cfg)
+    # 랜덤 adjacency matrix 생성
+    adj_matrix = create_typed_random_adjacency_matrix(cfg)
     
     # 매트릭스 정보 출력
     total_edges = np.sum(adj_matrix > 0)
@@ -311,10 +280,10 @@ def generate_matrix(name: str, N: int = 30, N1: int = 3, N2: int = 2, N3: int = 
     density = total_edges / (N * (N - 1))  # 자기 자신 제외
     print(f"Matrix density: {density:.3f}")
     print(f"Total edges: {total_edges}")
-    print(f"N1 (random): {edges_by_type[1]}, N2 (class pairs): {edges_by_type[2]}, N3 (within class): {edges_by_type[3]}")
+    print(f"N1 edges: {edges_by_type[1]}, N2 edges: {edges_by_type[2]}, N3 edges: {edges_by_type[3]}")
     
     # JSON으로 저장
-    description = f"School class network with {N} students (6 classes of 5), generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    description = f"Random network with {N} nodes, {total_edges} edges, generated on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     json_path = save_matrix_with_name(adj_matrix, cfg, name, description)
     
     if json_path:
@@ -331,17 +300,17 @@ def generate_matrix(name: str, N: int = 30, N1: int = 3, N2: int = 2, N3: int = 
 
 
 def main():
-    parser = argparse.ArgumentParser(description='학교 반 구조 네트워크 매트릭스 생성 도구')
+    parser = argparse.ArgumentParser(description='랜덤 네트워크 매트릭스 생성 도구 (총 엣지 개수 방식)')
     parser.add_argument('--name', type=str, required=True,
                        help='저장할 매트릭스의 이름')
-    parser.add_argument('--N', type=int, default=30,
+    parser.add_argument('--N', type=int, default=90,
                        help='노드 수 (기본값: 30)')
-    parser.add_argument('--N1', type=int, default=2,
-                       help='랜덤 연결 수 (기본값: 3)')
-    parser.add_argument('--N2', type=int, default=2,
-                       help='반간 연결할 학생 수 (기본값: 2)')
-    parser.add_argument('--N3', type=int, default=4,
-                       help='반 내부 연결 수 (기본값: 4)')
+    parser.add_argument('--N1', type=int, default=120,
+                       help='N1 타입 총 엣지 개수 (기본값: 20)')
+    parser.add_argument('--N2', type=int, default=90,
+                       help='N2 타입 총 엣지 개수 (기본값: 15)')
+    parser.add_argument('--N3', type=int, default=60,
+                       help='N3 타입 총 엣지 개수 (기본값: 10)')
     
     args = parser.parse_args()
     
@@ -359,10 +328,10 @@ def main():
         print(f"  config.json에서 'saved_matrix_path': '{json_path}'로 설정하여 사용")
         print(f"  그래프 모양은 {image_path}에서 확인 가능")
         print(f"\n특징:")
-        print(f"  - 30명이 5명씩 6개 반으로 구성됨")
-        print(f"  - N3: 반 내부 완전 연결 (두꺼운 검은선)")
-        print(f"  - N2: 1-2반, 3-4반, 5-6반 간 연결 (중간 회색선)")
-        print(f"  - N1: 랜덤 추가 연결 (얇은 회색선)")
+        print(f"  - 총 {args.N1 + args.N2 + args.N3}개의 엣지가 랜덤하게 배치됨")
+        print(f"  - N1: {args.N1}개 (얇은 회색선)")
+        print(f"  - N2: {args.N2}개 (중간 회색선)")
+        print(f"  - N3: {args.N3}개 (두꺼운 검은선)")
 
 
 if __name__ == "__main__":
